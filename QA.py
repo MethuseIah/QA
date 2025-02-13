@@ -1,5 +1,4 @@
 import random
-import itertools
 
 def load_questions_and_answers():
     with open("Q.txt", "r", encoding="utf-8") as q_file:
@@ -16,19 +15,17 @@ def load_questions_and_answers():
 
 def normalize_answer(answer):
     """정답을 표준화하여 비교 가능하도록 변환"""
-    answer_variations = answer.lower().replace(" ", "").split(",")
-
-    # 콜론(:)이 포함된 경우, 각 항목을 리스트로 변환하여 가능한 조합 생성
-    expanded_answers = [ans.split(":") for ans in answer_variations]
-
     if answer.startswith("~"):
-        # 순서 무관 (집합)
-        all_combinations = set(map(tuple, itertools.product(*expanded_answers)))
+        # 물결(~)을 제외한 뒤 쉼표로 구분된 각 항목을 집합으로 처리
+        answer_variations = answer[1:].lower().replace(" ", "").split(",")
+        normalized_answers = set(answer_variations)  # 집합으로 반환
     else:
-        # 순서 중요 (리스트)
-        all_combinations = list(map(list, itertools.product(*expanded_answers)))
-
-    return all_combinations
+        # 물결(~)이 없으면 그대로 순서에 맞게 리스트로 처리
+        # 콜론(:)을 구분자로 처리하여 :로 구분된 항목을 동일한 정답으로 취급
+        answer_variations = answer.lower().replace(" ", "").replace(":", ",").split(",")
+        normalized_answers = answer_variations  # 리스트로 반환
+    
+    return normalized_answers
 
 def print_welcome_message():
     """프로그램 시작 시 안내 메시지 출력"""
@@ -80,7 +77,7 @@ def quiz_program():
 
             # 정답이 집합인 경우(물결(~) 포함): 순서 상관없이 비교
             if isinstance(correct_answers, set):
-                if set(user_answer_list) in correct_answers:
+                if set(user_answer_list) == correct_answers:
                     print("정답입니다! \n")
                     score += 1
                     break
@@ -92,7 +89,7 @@ def quiz_program():
                         print(f"!!틀렸습니다. 정답은 \"{answers[i]}\" 입니다. \n")
             # 정답이 리스트인 경우(물결(~) 미포함): 순서대로 비교
             else:
-                if user_answer_list in correct_answers:
+                if user_answer_list == correct_answers:
                     print("정답입니다! \n")
                     score += 1
                     break
