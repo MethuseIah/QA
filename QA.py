@@ -1,31 +1,8 @@
 import random
 
-def load_questions_and_answers():
-    with open("Q.txt", "r", encoding="utf-8") as q_file:
-        questions = q_file.readlines()
-    
-    with open("A.txt", "r", encoding="utf-8") as a_file:
-        answers = a_file.readlines()
-    
-    # 질문과 답을 각각 줄바꿈 제거 후 반환
-    questions = [q.strip() for q in questions]
-    answers = [a.strip() for a in answers]
-    
-    return questions, answers
-
-def normalize_answer(answer):
-    """정답을 표준화하여 비교 가능하도록 변환"""
-    if answer.startswith("~"):
-        # 물결(~)을 제외한 뒤 쉼표로 구분된 각 항목을 집합으로 처리
-        answer_variations = answer[1:].lower().replace(" ", "").split(",")
-        normalized_answers = set(answer_variations)  # 집합으로 반환
-    else:
-        # 물결(~)이 없으면 그대로 순서에 맞게 리스트로 처리
-        # 콜론(:)을 구분자로 처리하여 :로 구분된 항목을 동일한 정답으로 취급
-        answer_variations = answer.lower().replace(" ", "").replace(":", ",").split(",")
-        normalized_answers = answer_variations  # 리스트로 반환
-    
-    return normalized_answers
+def read_file(filename):
+    with open(filename, 'r', encoding='utf-8') as file:
+        return [line.strip() for line in file.readlines()]
 
 def print_welcome_message():
     """프로그램 시작 시 안내 메시지 출력"""
@@ -42,65 +19,83 @@ def print_welcome_message():
 """
     print(welcome_message)
 
-def quiz_program():
-    print_welcome_message()  # 시작 시 안내 메시지 출력
+def compare_answers(correct_answer, user_answer, is_order_sensitive):
+    # 콜론(:)으로 구분된 정답을 그룹화 (소문자로 변환)
+    correct_groups = [[opt.lower().strip() for opt in group.split(':')] for group in correct_answer.split(',')]
+    user_list = [ans.lower().strip() for ans in user_answer.split(',')]
+
+    # 각 그룹에서 사용자 답이 하나라도 포함되어 있는지 확인
+    for user_ans in user_list:
+        found = False
+        for group in correct_groups:
+            if user_ans in group:
+                found = True
+                break
+        if not found:
+            return False
+
+    # 순서가 중요한 경우, 사용자 답의 순서와 그룹 순서가 일치해야 함
+    if is_order_sensitive:
+        for i, user_ans in enumerate(user_list):
+            if user_ans not in correct_groups[i]:
+                return False
+    return True
+
+def main():
+    questions = read_file('Q.txt')
+    answers = read_file('A.txt')
+
+    if len(questions) != len(answers):
+        print("문제와 정답의 개수가 일치하지 않습니다.")
+        return
     
-    questions, answers = load_questions_and_answers()
+    print_welcome_message()
     
     # 문제들을 랜덤하게 섞기
     combined = list(zip(questions, answers))
     random.shuffle(combined)  # 문제와 답을 섞는다.
     questions, answers = zip(*combined)  # 섞인 문제와 답을 다시 분리
     
-    score = 0
-    total = len(questions)
-    
-    for i in range(total):
-        print(f"문제 {i+1}: {questions[i]}")
-        correct_answers = normalize_answer(answers[i])  # 정답 정규화
-        
-        attempts = 3  # 최대 3번의 기회 제공
-        while attempts > 0:
-            user_answer = input(f"답을 입력하세요 ({attempts}번 남음, Q 입력 시 종료, J 입력 시 스킵): ").strip().lower().replace(" ", "")
-            user_answer_list = user_answer.split(",")  # 쉼표로 구분하여 리스트로 처리
+    total_questions = len(questions)
+    solved_questions = 0
 
-            # 사용자가 'Q'나 'ㅂ'를 입력하면 종료
-            if user_answer.upper() == "Q" or user_answer == "ㅂ":
-                print("퀴즈를 종료합니다.")
-                print(f"\n총 {score} / {total} 문제를 맞추셨습니다.")
+    for i, (question, correct_answer) in enumerate(zip(questions, answers)):
+        print(f"\n문제 {i+1}/{total_questions}: {question}")
+        attempts = 3  # 최대 3번 시도 가능
+
+        # 물결표(~)가 있는지 확인하여 순서 중요 여부 결정
+        is_order_sensitive = not correct_answer.startswith('~')
+        if not is_order_sensitive:
+            correct_answer = correct_answer[1:]  # 물결표 제거
+
+        while attempts > 0:
+            user_answer = input("답을 입력하세요 (Q: 종료, J: 스킵): ")
+
+            # 종료 처리
+            if user_answer.lower() in ['q', 'ㅂ']:
+                print("프로그램을 종료합니다.")
                 return
-            
-            # 사용자가 'J'나 'ㅏ'를 입력하면 문제를 스킵
-            if user_answer.upper() == "J" or user_answer == "ㅓ":
-                print(f"틀렸습니다. 정답은 \"{answers[i]}\" 입니다. (문제를 스킵했습니다.)\n")
+
+            # 스킵 처리
+            if user_answer.lower() in ['j', 'ㅓ']:
+                print("문제를 스킵합니다.\n")
+                print(f"정답은 {correct_answer}입니다.\n")
                 break
 
-            # 정답이 집합인 경우(물결(~) 포함): 순서 상관없이 비교
-            if isinstance(correct_answers, set):
-                if set(user_answer_list) == correct_answers:
-                    print("정답입니다! \n")
-                    score += 1
-                    break
-                else:
-                    attempts -= 1
-                    if attempts > 0:
-                        print(f"틀렸습니다. 다시 시도하세요. ({attempts}번 남음)")
-                    else:
-                        print(f"!!틀렸습니다. 정답은 \"{answers[i]}\" 입니다. \n")
-            # 정답이 리스트인 경우(물결(~) 미포함): 순서대로 비교
+            # 정답 비교 (대소문자 구분 없음)
+            if compare_answers(correct_answer, user_answer, is_order_sensitive):
+                print("정답입니다!\n")
+                solved_questions += 1
+                break
             else:
-                if user_answer_list == correct_answers:
-                    print("정답입니다! \n")
-                    score += 1
-                    break
+                attempts -= 1
+                if attempts > 0:
+                    print(f"틀렸습니다. 다시 시도해보세요. (남은 기회: {attempts}번)")
                 else:
-                    attempts -= 1
-                    if attempts > 0:
-                        print(f"틀렸습니다. 다시 시도하세요. ({attempts}번 남음)")
-                    else:
-                        print(f"!!틀렸습니다. 정답은 \"{answers[i]}\" 입니다. \n")
-    
-    print(f"\n총 {score} / {total} 문제를 맞추셨습니다.")
+                    print(f"틀렸습니다. 정답은 {correct_answer}입니다.\n")
+
+    print(f"총 {total_questions}문제 중 {solved_questions}문제를 풀었습니다.")
 
 if __name__ == "__main__":
-    quiz_program()
+    main()      
+    
